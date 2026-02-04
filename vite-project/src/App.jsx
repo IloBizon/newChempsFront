@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import Login from './Components/Login'
 import Registration from './Components/Registration'
+import Dashboard from './Components/Dashboard'
 
 function App() {
     const navigate = useNavigate()
@@ -54,6 +55,7 @@ function App() {
     return (
         <Routes>
             <Route path="/" element={<Login />} />
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/register" element={<Registration />} />
             <Route path="*" element={<Navigate to="/" />} />
         </Routes>

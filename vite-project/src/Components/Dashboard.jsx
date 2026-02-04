@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import Diary from './Diary';
 import Analytics from './Analytics';
+import Notifications from './Notifications';
 
 const Dashboard = () => {
     const [activeTab, setActiveTab] = useState('Главная');
     const [stats, setStats] = useState([]);
     const [prescriptions, setPrescriptions] = useState([]);
     const [error, setError] = useState('');
-    
+    const [alertsCount, setAlertsCount] = useState(0);
+
     const [newRecord, setNewRecord] = useState({
         glucose: 5.5, sys: 120, dia: 80, pulse: 70, weight: 70.0, text: ''
     });
@@ -31,6 +33,13 @@ const Dashboard = () => {
                 });
                 const pData = await pRes.json();
                 setPrescriptions(Array.isArray(pData) ? pData : pData.results || []);
+
+                let count = 0;
+                const last = statsArray[statsArray.length - 1];
+                if (last && (last.systolic_pressure > 140 || last.glucose > 7)) count++;
+                count += prescrArray.filter(p => !p.was_taken).length;
+            
+                setAlertsCount(count + 2);
             } catch (e) {
                 console.log("Ошибка загрузки данных");
             }
@@ -39,54 +48,54 @@ const Dashboard = () => {
     }, [token]);
 
     const handleAddStats = async () => {
-    try {
-        const token = localStorage.getItem('token');
+        try {
+            const token = localStorage.getItem('token');
 
-        const dataToSend = {
-            glucose: Math.round(parseFloat(newRecord.glucose)),
-            systolic_pressure: parseInt(newRecord.sys),
-            diastolic_pressure: parseInt(newRecord.dia),
-            pulse: parseInt(newRecord.pulse),
-            weight: parseInt(newRecord.weight),
-            text: newRecord.text || "Замер показателей"
-        };
+            const dataToSend = {
+                glucose: Math.round(parseFloat(newRecord.glucose)),
+                systolic_pressure: parseInt(newRecord.sys),
+                diastolic_pressure: parseInt(newRecord.dia),
+                pulse: parseInt(newRecord.pulse),
+                weight: parseInt(newRecord.weight),
+                text: newRecord.text || "Замер показателей"
+            };
 
-        const res = await fetch('http://127.0.0.1:8000/health-statistics/', {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}` 
-            },
-            body: JSON.stringify(dataToSend)
-        });
+            const res = await fetch('http://127.0.0.1:8000/health-statistics/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(dataToSend)
+            });
 
-        if (res.ok) {
-            alert("Данные успешно сохранены");
-            window.location.reload();
-        } else {
-            const errorData = await res.json();
-            alert("Ошибка валидации: " + JSON.stringify(errorData));
+            if (res.ok) {
+                alert("Данные успешно сохранены");
+                window.location.reload();
+            } else {
+                const errorData = await res.json();
+                alert("Ошибка валидации: " + JSON.stringify(errorData));
+            }
+        } catch (e) {
+            alert("Ошибка сети или сервера");
         }
-    } catch (e) {
-        alert("Ошибка сети или сервера");
-    }
-};
+    };
 
     const handleMarkTaken = async (id) => {
         try {
             const token = localStorage.getItem('token');
             const res = await fetch(`http://127.0.0.1:8000/drug-prescription/${id}/`, {
                 method: 'PATCH',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}` 
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({ was_taken: true })
             });
 
             if (res.ok) {
                 alert("Препарат отмечен как принятый");
-                setPrescriptions(prescriptions.map(p => 
+                setPrescriptions(prescriptions.map(p =>
                     p.id === id ? { ...p, was_taken: true } : p
                 ));
             } else {
@@ -99,8 +108,8 @@ const Dashboard = () => {
     };
 
     const latest = stats[0] || {};
-    const adherence = prescriptions.length > 0 
-        ? Math.round((prescriptions.filter(p => p.was_taken).length / prescriptions.length) * 100) 
+    const adherence = prescriptions.length > 0
+        ? Math.round((prescriptions.filter(p => p.was_taken).length / prescriptions.length) * 100)
         : 0;
 
     return (
@@ -109,16 +118,18 @@ const Dashboard = () => {
                 <div style={s.logo}>ЦДП</div>
                 <div style={s.userNav}>
                     <span>Иванов И.И.</span>
-                    <span style={s.icon}>🔔</span>
-                    <button onClick={() => {localStorage.clear(); window.location.href='/';}} style={s.flatBtn}>Выход</button>
+                    <span style={s.icon} onClick={() => setActiveTab('Уведомления')}>
+                        🔔 {alertsCount > 0 && <span style={s.badge}>{alertsCount}</span>}
+                    </span>
+                    <button onClick={() => { localStorage.clear(); window.location.href = '/'; }} style={s.flatBtn}>Выход</button>
                 </div>
             </header>
 
             <div style={s.body}>
                 <aside style={s.sidebar}>
-                    {['Главная', 'Мои показатели', 'Назначения', 'Дневник', 'Статистика', 'Визиты', 'Настройки', 'Помощь'].map(item => (
-                        <button key={item} 
-                            onClick={() => setActiveTab(item)} 
+                    {['Главная', 'Мои показатели', 'Назначения', 'Дневник', 'Статистика','Настройки', 'Помощь'].map(item => (
+                        <button key={item}
+                            onClick={() => setActiveTab(item)}
                             style={activeTab === item ? s.menuBtnActive : s.menuBtn}>
                             {item}
                         </button>
@@ -158,29 +169,29 @@ const Dashboard = () => {
                             <h2>Мои показатели</h2>
                             <div style={s.card}>
                                 <label>Глюкоза (ммоль/л): {newRecord.glucose}</label>
-                                <input type="range" min="2" max="20" step="0.1" 
-                                    value={newRecord.glucose} 
-                                    onChange={e => setNewRecord({...newRecord, glucose: e.target.value})} 
-                                    style={s.range}/>
-                                
-                                <input type="number" placeholder="Систолическое (60-250)" style={s.input} 
-                                    onChange={e => setNewRecord({...newRecord, sys: e.target.value})} />
-                                
-                                <input type="number" placeholder="Диастолическое (40-150)" style={s.input} 
-                                    onChange={e => setNewRecord({...newRecord, dia: e.target.value})} />
-                                
-                                <input type="number" placeholder="Пульс (40-180)" style={s.input} 
-                                    onChange={e => setNewRecord({...newRecord, pulse: e.target.value})} />
-                                
-                                <input type="number" step="0.1" placeholder="Вес (кг)" style={s.input} 
-                                    onChange={e => setNewRecord({...newRecord, weight: e.target.value})} />
-                                
+                                <input type="range" min="2" max="20" step="0.1"
+                                    value={newRecord.glucose}
+                                    onChange={e => setNewRecord({ ...newRecord, glucose: e.target.value })}
+                                    style={s.range} />
+
+                                <input type="number" placeholder="Систолическое (60-250)" style={s.input}
+                                    onChange={e => setNewRecord({ ...newRecord, sys: e.target.value })} />
+
+                                <input type="number" placeholder="Диастолическое (40-150)" style={s.input}
+                                    onChange={e => setNewRecord({ ...newRecord, dia: e.target.value })} />
+
+                                <input type="number" placeholder="Пульс (40-180)" style={s.input}
+                                    onChange={e => setNewRecord({ ...newRecord, pulse: e.target.value })} />
+
+                                <input type="number" step="0.1" placeholder="Вес (кг)" style={s.input}
+                                    onChange={e => setNewRecord({ ...newRecord, weight: e.target.value })} />
+
                                 <button onClick={handleAddStats} style={s.btnBlack}>Сохранить</button>
                             </div>
 
                             <div style={s.chartBox}>
                                 <h3>Динамика давления</h3>
-                                <div style={{width: '100%', height: 250}}>
+                                <div style={{ width: '100%', height: 250 }}>
                                     <ResponsiveContainer>
                                         <LineChart data={stats}>
                                             <CartesianGrid stroke="#ccc" />
@@ -203,12 +214,15 @@ const Dashboard = () => {
                                 <div key={p.id} style={s.listItem}>
                                     <div>
                                         <strong>{p.drug?.title || 'Препарат'}</strong> - {p.drug?.dose || 0} мг
-                                        <p style={{fontSize: '12px', margin: 0}}>{p.was_taken ? 'Принято' : 'Ожидает приема'}</p>
+                                        <p style={{ fontSize: '12px', margin: 0 }}>{p.was_taken ? 'Принято' : 'Ожидает приема'}</p>
                                     </div>
                                     {!p.was_taken && <button style={s.btnBlackSmall} onClick={() => handleMarkTaken(p.id)} >Принять</button>}
                                 </div>
                             ))}
                         </div>
+                    )}
+                    {activeTab === 'Уведомления' && (
+                        <Notifications onBack={() => setActiveTab('Главная')} />
                     )}
                     {activeTab === 'Дневник' && (
                         <Diary onBack={() => setActiveTab('Главная')} />

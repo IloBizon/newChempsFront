@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import Diary from './Diary';
+import Analytics from './Analytics';
 
 const Dashboard = () => {
     const [activeTab, setActiveTab] = useState('Главная');
@@ -211,6 +212,9 @@ const Dashboard = () => {
                     )}
                     {activeTab === 'Дневник' && (
                         <Diary onBack={() => setActiveTab('Главная')} />
+                    )}
+                    {activeTab === 'Статистика' && (
+                        <Analytics onBack={() => setActiveTab('Главная')} />
                     )}
                 </main>
             </div>
